@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+pandas
+numpy
+scipy
+scikit-learn
+websockets
+pytest
+pytest-asyncio
+httpx
+torch
+PyJWT
+passlib[bcrypt]
+python-multipart
+bcrypt
+joblib
