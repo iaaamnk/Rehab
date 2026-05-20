@@ -39,10 +39,12 @@ class SeqDataset(Dataset):
 
 def make_sequences(features, labels, seq_len):
     """Overlapping sliding window; label = majority vote."""
+    # Map KInAReT labels: 1 -> 0 (Healthy), >1 -> 1 (Compensatory)
+    binary_labels = np.where(labels > 1, 1, 0)
     seqs, lbls = [], []
     for i in range(len(features) - seq_len + 1):
         seqs.append(features[i : i + seq_len])
-        lbls.append(1 if np.mean(labels[i : i + seq_len]) > 0.5 else 0)
+        lbls.append(1 if np.mean(binary_labels[i : i + seq_len]) > 0.5 else 0)
     return np.array(seqs), np.array(lbls)
 
 
@@ -89,8 +91,14 @@ def train_model():
     X_tr, X_te, y_tr, y_te = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
-    tr_loader = DataLoader(SeqDataset(X_tr, y_tr), BATCH_SIZE, shuffle=True)
-    te_loader = DataLoader(SeqDataset(X_te, y_te), BATCH_SIZE)
+    # Class weight to address 74/26 imbalance: pos_weight = n_neg / n_pos
+    n_neg = (y_tr == 0).sum()
+    n_pos = (y_tr == 1).sum()
+    pos_weight = torch.tensor([n_neg / n_pos], dtype=torch.float32).to(DEVICE)
+    print(f"Class weight   : {pos_weight.item():.3f}  (neg={n_neg}, pos={n_pos})")
+
+    tr_loader = DataLoader(SeqDataset(X_tr, y_tr), BATCH_SIZE, shuffle=True, num_workers=2, pin_memory=True)
+    te_loader = DataLoader(SeqDataset(X_te, y_te), BATCH_SIZE, num_workers=2, pin_memory=True)
 
     # ── model ─────────────────────────────────────────────────────────
     model = LSTMCompensationDetector(
@@ -98,9 +106,9 @@ def train_model():
         num_layers=2, dropout=0.3,
     ).to(DEVICE)
 
-    criterion = nn.BCELoss()
-    optimiser = torch.optim.Adam(model.parameters(), lr=LR)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimiser, patience=5, factor=0.5)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    optimiser = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimiser, patience=5, factor=0.5, min_lr=1e-5)
 
     print(f"Params     : {sum(p.numel() for p in model.parameters()):,}")
     print("Training …\n")
@@ -117,6 +125,7 @@ def train_model():
             optimiser.zero_grad()
             loss = criterion(model(bx), by)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimiser.step()
             t_loss += loss.item()
 
@@ -128,17 +137,21 @@ def train_model():
                 bx, by_d = bx.to(DEVICE), by.to(DEVICE).unsqueeze(1)
                 out = model(bx)
                 v_loss += criterion(out, by_d).item()
-                preds.extend((out.cpu() > 0.5).float().numpy().ravel())
+                # BCEWithLogitsLoss outputs raw logits; apply sigmoid before threshold
+                probs = torch.sigmoid(out).cpu()
+                preds.extend((probs > 0.5).float().numpy().ravel())
                 trues.extend(by.numpy().ravel())
 
+        avg_v_loss = v_loss / len(te_loader)
         acc = accuracy_score(trues, preds)
-        scheduler.step(v_loss)
+        scheduler.step(avg_v_loss)
 
         if epoch % 5 == 0 or epoch == 1:
             print(f"Epoch {epoch:3d}/{EPOCHS}  "
                   f"TrLoss {t_loss/len(tr_loader):.4f}  "
-                  f"VaLoss {v_loss/len(te_loader):.4f}  "
-                  f"Acc {acc:.4f}")
+                  f"VaLoss {avg_v_loss:.4f}  "
+                  f"Acc {acc:.4f}  "
+                  f"LR {optimiser.param_groups[0]['lr']:.2e}")
 
         if acc > best_acc:
             best_acc = acc
@@ -153,7 +166,8 @@ def train_model():
     with torch.no_grad():
         for bx, by in te_loader:
             out = model(bx.to(DEVICE))
-            preds.extend((out.cpu() > 0.5).float().numpy().ravel())
+            probs = torch.sigmoid(out).cpu()
+            preds.extend((probs > 0.5).float().numpy().ravel())
             trues.extend(by.numpy().ravel())
 
     print(f"Accuracy : {accuracy_score(trues, preds):.4f}")

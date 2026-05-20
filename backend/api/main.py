@@ -39,14 +39,18 @@ MODEL_PATH = os.path.join(MODEL_DIR, "lstm_model.pth")
 NORM_PATH  = os.path.join(MODEL_DIR, "norm_params.npz")
 
 lstm_model  = None
-norm_params = None
+norm_mean   = None
+norm_std    = None
 
 if os.path.exists(MODEL_PATH) and os.path.exists(NORM_PATH):
     try:
         lstm_model = LSTMCompensationDetector(input_size=len(FEATURE_NAMES))
-        lstm_model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
+        lstm_model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu", weights_only=True))
         lstm_model.eval()
-        norm_params = np.load(NORM_PATH)
+        _np = np.load(NORM_PATH)
+        # Pre-convert to float32 tensors once at startup — avoids per-frame conversion
+        norm_mean = torch.tensor(_np["mean"], dtype=torch.float32)
+        norm_std  = torch.tensor(_np["std"],  dtype=torch.float32)
         print("✓  LSTM model loaded")
     except Exception as e:
         print(f"✗  LSTM load failed: {e}")
@@ -170,26 +174,24 @@ def _process_frame(sess: _Session, data: dict) -> dict | None:
         sess.seq_buf.add_frame(features)
         if sess.seq_buf.is_ready():
             seq = sess.seq_buf.get_sequence()
-            if seq is not None and norm_params is not None:
-                seq_np = (seq.numpy() - norm_params["mean"]) / (norm_params["std"] + 1e-8)
+            if seq is not None and norm_mean is not None:
+                seq_norm = (seq - norm_mean) / (norm_std + 1e-8)
                 with torch.no_grad():
-                    pred = lstm_model(torch.FloatTensor(seq_np))
-                    ml_conf = float(pred.item())
+                    logits  = lstm_model(seq_norm)
+                    ml_conf = float(torch.sigmoid(logits).item())
                     ml_comp = ml_conf > 0.5
-            if ml_comp:
-                feedback["alerts"].append(
-                    f"ML: Compensatory pattern (conf {ml_conf:.0%})")
 
     scores = sess.rules.get_session_scores()
+    overall_feedback = sess.rules.get_overall_feedback()
 
     return {
         "type": "frame",
         "features": features,
-        "alerts": feedback["alerts"],
         "is_compensatory": feedback["is_compensatory_rule_based"] or ml_comp,
         "ml_confidence": ml_conf,
         "is_calibrated": sess.extractor.is_calibrated,
         "scores": scores,
+        "overall_feedback": overall_feedback,
     }
 
 

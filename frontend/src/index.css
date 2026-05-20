@@ -102,7 +102,7 @@ body {
 
 .main-grid {
   display: grid;
-  grid-template-columns: 400px 1fr;
+  grid-template-columns: 1.30fr 1fr;
   gap: 1.5rem;
   padding: 1.5rem 2rem;
   flex: 1;
@@ -124,7 +124,7 @@ body {
   border-radius: var(--radius);
   overflow: hidden;
   background: #000;
-  aspect-ratio: 4/3;
+  aspect-ratio: 16/9;
   border: 1px solid var(--border);
 }
 
@@ -300,52 +300,117 @@ body {
   color: var(--green);
 }
 
-/* ── Chart ─────────────────────────────────────────────────────────── */
-.chart-panel {
+
+
+/* ── Posture Recommendations (Overall Feedback) ────────────────────── */
+.feedback-panel {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1.25rem;
-}
-
-.chart-panel h3 {
-  font-size: .85rem;
-  font-weight: 600;
-  color: var(--text-dim);
-  margin-bottom: .75rem;
-}
-
-/* ── Alerts ────────────────────────────────────────────────────────── */
-.alerts-panel {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--red);
-  border-radius: var(--radius);
-  padding: 1.25rem;
-}
-
-.alerts-panel h3 {
-  font-size: .85rem;
-  font-weight: 600;
-  color: var(--red);
-  margin-bottom: .75rem;
-}
-
-.alert-item {
-  background: var(--red-glow);
-  border: 1px solid rgba(248, 113, 113, .15);
-  color: var(--red);
-  padding: .65rem .9rem;
-  margin-bottom: .5rem;
-  border-radius: var(--radius-sm);
-  font-size: .82rem;
+  padding: 1.25rem 1.5rem;
   display: flex;
-  gap: .5rem;
+  flex-direction: column;
+  gap: 1rem;
 }
 
-.alert-item .alert-time {
+.feedback-panel h3 {
+  font-size: 0.95rem;
   font-weight: 600;
-  white-space: nowrap;
+  color: var(--text);
+  margin-bottom: 0.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.feedback-panel .subtitle {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-top: -0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.feedback-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+.feedback-card {
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  background: var(--bg-card-alt);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.feedback-card:hover {
+  transform: translateY(-1px);
+}
+
+.feedback-card.excellent {
+  border-left: 3px solid var(--green);
+}
+.feedback-card.excellent .card-header {
+  color: var(--green);
+}
+
+.feedback-card.needs_improvement {
+  border-left: 3px solid var(--amber);
+}
+.feedback-card.needs_improvement .card-header {
+  color: var(--amber);
+}
+
+.feedback-card .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.feedback-card .status-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+}
+
+.feedback-card.excellent .status-tag {
+  background: var(--green-glow);
+  color: var(--green);
+}
+
+.feedback-card.needs_improvement .status-tag {
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--amber);
+}
+
+.feedback-card .message {
+  font-size: 0.84rem;
+  color: var(--text);
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+.feedback-card .tip {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  border-top: 1px dashed var(--border);
+  padding-top: 0.45rem;
+  margin-top: 0.15rem;
+  display: flex;
+  gap: 0.3rem;
+}
+
+.feedback-card .tip::before {
+  content: "💡";
 }
 
 /* ── Status badge (compensatory / healthy) ─────────────────────────── */

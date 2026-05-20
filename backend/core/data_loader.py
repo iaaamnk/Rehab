@@ -111,8 +111,5 @@ class MotionDataLoader:
         nyq = 0.5 * self.fps
         b, a = butter(order, cutoff / nyq, btype="low", analog=False)
 
-        smoothed = np.zeros_like(positions)
-        for j in range(self.NUM_JOINTS):
-            for c in range(3):
-                smoothed[:, j, c] = filtfilt(b, a, positions[:, j, c])
-        return smoothed
+        # Vectorised filtfilt over the time axis (axis=0)
+        return filtfilt(b, a, positions, axis=0)

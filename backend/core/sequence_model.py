@@ -9,7 +9,11 @@ import torch.nn as nn
 
 
 class LSTMCompensationDetector(nn.Module):
-    """Bidirectional LSTM → FC classifier (binary: compensatory or not)."""
+    """Bidirectional LSTM → FC classifier (binary: compensatory or not).
+
+    NOTE: The final layer outputs raw logits (no Sigmoid). Use
+    ``torch.sigmoid(model(x))`` for inference and BCEWithLogitsLoss for training.
+    """
 
     def __init__(self, input_size=6, hidden_size=64, num_layers=2, dropout=0.3):
         super().__init__()
@@ -26,7 +30,8 @@ class LSTMCompensationDetector(nn.Module):
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(32, 1),
-            nn.Sigmoid(),
+            # No Sigmoid here — BCEWithLogitsLoss handles it for training;
+            # apply torch.sigmoid() explicitly during inference.
         )
 
     def forward(self, x):
@@ -40,8 +45,8 @@ class LSTMCompensationDetector(nn.Module):
 
 
 class SequenceBuffer:
-    """Sliding‑window buffer that collects per‑frame features and
-    produces fixed‑length sequences ready for LSTM inference."""
+    """Sliding-window buffer that collects per-frame features and
+    produces fixed-length sequences ready for LSTM inference."""
 
     def __init__(self, seq_length=30, feature_names=None):
         self.seq_length = seq_length
@@ -53,7 +58,7 @@ class SequenceBuffer:
             "trunk_lateral_lean",
             "shoulder_height_diff",
         ]
-        self.buffer: list[list[float]] = []
+        self.buffer: list = []
 
     def add_frame(self, features_dict: dict):
         row = [features_dict.get(n, 0.0) for n in self.feature_names]
